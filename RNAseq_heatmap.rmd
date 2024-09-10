@@ -1,0 +1,153 @@
+---
+
+library("DESeq2")
+library("apeglm")
+library("pheatmap")
+library("tidyverse")
+library("ggrepel")
+library("ashr")
+library("vsn")
+library(gplots)
+> setwd("C:/Users/username/Desktop/nekroz/")
+> dir()
+
+
+```{r}
+
+ct<-read.table("necrosis.out",header = T)
+treatment<-c("Control","Control","Control","Control","Subject","Subject","Subject","Subject")
+Samples<-colnames(ct)[2:9]
+meta<-data.frame(Samples,treatment)
+View(meta)
+row.names(ct)<-ct$Geneid
+ct<-ct[,-1]
+ct_m <- as.matrix(ct)
+sumcounts <- rowSums(ct_m)
+logsumcounts <- log(sumcounts,base=10)
+hist(logsumcounts,breaks=100)
+row.names(meta)<-meta[,1]
+dds <- DESeqDataSetFromMatrix(countData = ct_m, colData = meta,design = ~ treatment)
+                  verdigi uyarı hata degil...!!
+View(counts(dds))
+dds <- estimateSizeFactors(dds)
+sizeFactors(dds)
+normalized_counts <- counts(dds, normalized=TRUE)
+View(normalized_counts)
+write.table(normalized_counts, file="normalized_counts.txt", sep="\t", quote=F, col.names=NA)
+write.csv(normalized_counts, file = "normalized_counts_necrosis.csv")
+xlsx::write.xlsx(normalized_counts, file = "normalized_counts_necrosis.xlsx")
+
+```
+
+```{r}
+keep <- sumcounts > 20
+dds <- dds[keep,]
+dds$condition <- relevel(dds$treatment, ref = "Control")
+dds <- DESeq(dds)
+resultsNames(dds)
+res <- results(dds, name="treatment_Subject_vs_Control")
+summary(res)
+res
+write.table(res, file="res.txt", sep="\t", quote=F, col.names=NA)
+write.csv(res, file = "res_necrosis.csv")
+xlsx::write.xlsx(res, file = "res_necrosis.xlsx")
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+res01 <- results(dds, alpha=0.01)
+summary(res01)
+resOrdered <- res[order(res$pvalue),]
+sum(res$padj < 0.1, na.rm=TRUE)
+sum(res$padj < 0.01, na.rm=TRUE)
+plotMA(res, ylim=c(-7,7),cex=1)
+# idx <- identify(res05$baseMean, res05$log2FoldChange)
+# rownames(res05)[idx]
+
+plotCounts(dds, gene=which.min(res$padj), intgroup="treatment")
+plotCounts(dds, gene=which.max(res$padj), intgroup="treatment")
+
+d <- plotCounts(dds, gene=which.min(res$padj), intgroup="treatment", 
+                returnData=TRUE)
+ggplot(d, aes(x=treatment, y=count)) +
+    geom_point(position=position_jitter(w=0.1,h=0)) +
+    scale_y_log10(breaks=c(25,100,400))
+
+(ek çalışma: 
+kl <- plotCounts(dds, gene=which.max(res$padj), intgroup="treatment", 
+                returnData=TRUE)
+
+ggplot(kl, aes(x=treatment, y=count)) +
+    geom_point(position=position_jitter(w=0.1,h=0)) +
+    scale_y_log10(breaks=c(25,100,400))
+)
+
+log_padj <- -log(res$padj,10)
+log_padj[log_padj > 100] <- 100
+
+plot(x=res$log2FoldChange,
+     y=log_padj,
+     pch=20,
+     cex=.5,
+     col=(log_padj > 10)+1, # color padj < 0.1 red
+     ylab="negative log-scaled adjusted p-value",
+     xlab="log2 fold changes")
+
+boxplot(log10(assays(dds)[["cooks"]]), range=0, las=2)
+```
+
+```{r}
+library("vsn")
+vsd <- vst(dds, blind=FALSE)
+rld <- rlog(dds, blind=FALSE)
+head(assay(vsd), 20)
+head(assay(vsd), 50)
+head(assay(rld), 50)
+ntd <- normTransform(dds)
+meanSdPlot(assay(ntd))
+plotPCA(vsd)
+
+
+--
+> ax = head(assay(vsd), 50)
+> write.table(ax, file ="vsd_50_nekroz.txt", sep="\t", quote=F, col.names=NA)
+> bx = head(assay(rld), 50)
+> write.table(bx, file ="rld_50_nekroz.txt", sep="\t", quote=F, col.names=NA)
+--
+```
+
+> library(gplots)
+> mycol = colorpanel(n = 99, low = "green", mid = "black", high = "red")
+> mycol = colorpanel(n = 50, low = "green", mid = "black", high = "red")
+> library(pheatmap)
+> pheatmap(normalized_counts, Colv = TRUE, Rowv = TRUE, col = mycol, scale = "none", legend = TRUE, trace = "row", mar = c(8,5))
+> xyz = head(assay(vsd), 99)
+> zyx = head(assay(rld), 99)
+  > xyz = head(assay(vsd), 50)
+  > zyx = head(assay(rld), 50)
+> pheatmap(xyz, Colv = TRUE, Rowv = TRUE, col = mycol, scale = "none", legend = TRUE, trace = "row", mar = c(8,5))
+> pheatmap(zyx, Colv = TRUE, Rowv = TRUE, col = mycol, scale = "none", legend = TRUE, trace = "row", mar = c(8,5))
+
+veya
+
+> pheatmap(xyz, Colv = TRUE, Rowv = TRUE, col = mycol, scale = "none", legend = TRUE, trace = "row", mar = c(8,5), pch=2, cex=1)
+> pheatmap(zyx, Colv = TRUE, Rowv = TRUE, col = mycol, scale = "none", legend = TRUE, trace = "row", mar = c(8,5), pch=2, cex=1)
+
+
+#> pheatmap(rld, Colv = TRUE, Rowv = TRUE, col = mycol, scale = "none", legend = TRUE, trace = "row", mar = c(8,5))
+
+```
+> write.table(resOrdered, file = "resOrdered.tsv", sep='\t')
+> write.csv(resOrdered, file = "resOrdered.csv")
+> xlsx::write.xlsx(resOrdered, file = "resOrdered.xlsx")
+
+up=resOrdered[resOrdered$log2FoldChange>0,]
+> write.table(up, file = "up_necrosis.tsv", sep='\t')
+> write.csv(up, file = "up_necrosis.csv")
+> xlsx::write.xlsx(up, file = "up_necrosis.xlsx")
+
+down=resOrdered[resOrdered$log2FoldChange<0,]
+> write.table(down, file = "down_necrosis.tsv", sep='\t')
+> write.csv(up, file = "down_necrosis.csv")
+> xlsx::write.xlsx(down, file = "down_necrosis.xlsx")
+
+
+
